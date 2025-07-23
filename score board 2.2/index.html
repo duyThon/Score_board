@@ -1,0 +1,1043 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Remote</title>
+    <link rel="icon" href="/assets/website-icon.png" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Rowdies:wght@700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,800;1,800&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script
+      crossorigin
+      src="https://unpkg.com/react@18/umd/react.development.js"
+    ></script>
+    <script
+      crossorigin
+      src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"
+    ></script>
+
+    <!-- Tailwind + GSAP -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            colors: {
+              yellow: "#ffc830",
+              green: "#0ff52a",
+              blue: "#1222ff",
+              red: "#ff1414",
+              orange: "#ff8b17",
+            },
+            fontFamily: {
+              roboto: ['"Roboto"', "serif"],
+              rowdies: ['"Rowdies"', "serif"],
+            },
+          },
+        },
+      };
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link rel="stylesheet" href="style.css" />;
+    <script type="text/babel">
+      const App = () => {
+        const { useState, useEffect, useRef } = React;
+
+        useEffect(() => {
+          const handleResize = () => {
+            document.documentElement.style.setProperty(
+              "--vh",
+              `${window.innerHeight * 0.01}px`
+            );
+          };
+
+          window.addEventListener("resize", handleResize);
+          handleResize();
+
+          return () => window.removeEventListener("resize", handleResize);
+        }, []);
+
+        // sound
+        const playTOSound = () => {
+          const audio = new Audio("./assets/sounds/Buzzer.mp3");
+          audio.play();
+        };
+
+        const playSound = () => {
+          const audio = new Audio("./assets/sounds/Horn.mp3");
+          audio.play();
+        };
+
+        // toggle menu
+        const [open, setOpen] = useState(false);
+        const menuRef = useRef(null);
+        const [remoteScale, setRemoteScale] = useState(100);
+        const [scoreboardScale, setScoreboardScale] = useState(100);
+        const [is5vs5, setIs5vs5] = useState(true);
+        const [teamAColor, setTeamAColor] = useState("#ffffff");
+        const [teamBColor, setTeamBColor] = useState("#cccccc");
+
+        useEffect(() => {
+          if (open && menuRef.current) {
+            gsap.fromTo(
+              menuRef.current,
+              { x: -80, opacity: 0 },
+              { x: 0, opacity: 1, duration: 0.5, ease: "power2.out" }
+            );
+          }
+        }, [open]);
+
+        const handleRemoteScale = (e) => {
+          let value = Math.max(50, Math.min(100, Number(e.target.value)));
+          setRemoteScale(value);
+        };
+
+        const handleScoreboardScale = (e) => {
+          let value = Math.max(50, Math.min(100, Number(e.target.value)));
+          setScoreboardScale(value);
+        };
+
+        const handleTeamAColor = (e) => {
+          const newColor = e.target.value;
+          setTeamAColor(newColor);
+          localStorage.setItem("teamAColor", newColor);
+        };
+
+        const handleTeamBColor = (e) => {
+          const newColor = e.target.value;
+          setTeamBColor(newColor);
+          localStorage.setItem("teamBColor", newColor);
+        };
+
+        // Timer
+        const [timerInputTimerValue, setTimerInputTimerValue] = useState("");
+        const [timer, setTimer] = useState(0);
+        const [timerIsRunning, setTimerIsRunning] = useState(false);
+        const intervalTimerRef = useRef(null);
+
+        useEffect(() => {
+          if (timerIsRunning) {
+            intervalTimerRef.current = setInterval(() => {
+              setTimer((prev) => {
+                if (prev <= 0) {
+                  clearInterval(intervalTimerRef.current);
+                  setTimerIsRunning(false);
+                  return 0;
+                }
+                return prev - 1;
+              });
+            }, 1000);
+          } else {
+            clearInterval(intervalTimerRef.current);
+          }
+
+          return () => clearInterval(intervalTimerRef.current);
+        }, [timerIsRunning]);
+
+        useEffect(() => {
+          if (timer == 0 && timerIsRunning) {
+            playTOSound();
+          }
+        }, [timer]);
+
+        const handleInput = (e) => {
+          const value = e.target.value.replace(/\D/g, "").slice(0, 4);
+          setTimerInputTimerValue(value);
+          const seconds = parseInt(value.slice(-2), 10) || 0;
+          const minutes = parseInt(value.slice(0, -2), 10) || 0;
+          setTimer(minutes * 60 + seconds);
+        };
+
+        const handleTimerClick = () => {
+          if (timer > 0 && timerIsRunning) {
+            setTimerIsRunning(false);
+          } else if (timer > 0 && !timerIsRunning) {
+            setTimerIsRunning(true);
+          }
+        };
+
+        // Logo giải
+        const [leagueLogo, setLeagueLogo] = useState(null);
+
+        const handleLeagueLogoUpload = (e) => {
+          const file = e.target.files[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = () => {
+              const base64 = reader.result;
+              setLeagueLogo(base64);
+              localStorage.setItem("leagueLogo", base64);
+            };
+            reader.readAsDataURL(file);
+          }
+        };
+
+        // Logo đội
+        const [teamALogo, setTeamALogo] = useState(null);
+        const [teamBLogo, setTeamBLogo] = useState(null);
+
+        const handleUploadTeamLogo = (team) => {
+          const file = event.target.files[0];
+          if (file) {
+            const reader = new FileReader();
+            reader.onload = () => {
+              const base64 = reader.result;
+              if (team === "A") {
+                setTeamALogo(base64);
+                localStorage.setItem("teamALogo", base64);
+              } else {
+                setTeamBLogo(base64);
+                localStorage.setItem("teamBLogo", base64);
+              }
+            };
+            reader.readAsDataURL(file);
+          }
+        };
+
+        // Shot clock
+        const [shotClock, setShotClock] = useState(24);
+        const [editingShotClock, setEditingShotClock] = useState(null);
+
+        useEffect(() => {
+          if (shotClock == 0 && timerIsRunning) {
+            playSound();
+          }
+        }, [shotClock]);
+
+        useEffect(() => {
+          if (!is5vs5) {
+            setShotClock(12);
+          }
+        }, [is5vs5]);
+
+        useEffect(() => {
+          let interval = null;
+          if (timerIsRunning) {
+            interval = setInterval(() => {
+              setShotClock((prev) => {
+                if (prev <= 1) {
+                  return 0;
+                }
+                return prev - 1;
+              });
+            }, 1000);
+          } else {
+            clearInterval(interval);
+          }
+          return () => clearInterval(interval);
+        }, [timerIsRunning]);
+
+        const handleTimeSave = () => {
+          const newTime = parseInt(shotClock, 10);
+          if (!isNaN(newTime) && newTime >= 0) {
+            setShotClock(newTime);
+          } else {
+            setShotClock(0);
+          }
+          setEditingShotClock(null);
+        };
+
+        const checkEditingShotClock = () => {
+          if (!timerIsRunning) {
+            setEditingShotClock(true);
+          }
+        };
+
+        // team name
+        const [teamAName, setTeamAName] = useState("");
+        const [teamBName, setTeamBName] = useState("");
+
+        useEffect(() => {
+          localStorage.setItem("teamAName", teamAName);
+        }, [teamAName]);
+
+        useEffect(() => {
+          localStorage.setItem("teamBName", teamBName);
+        }, [teamBName]);
+
+        // score
+        const [teamAScore, setTeamAScore] = useState(0);
+        const [teamBScore, setTeamBScore] = useState(0);
+        const [editingTeam, setEditingTeam] = useState(null);
+        const [tempScore, setTempScore] = useState("");
+
+        const handleScoreClick = (team) => {
+          setEditingTeam(team);
+          setTempScore(team === "A" ? teamAScore : teamBScore);
+        };
+
+        const handleScoreSave = () => {
+          const newScore = parseInt(tempScore, 10);
+          if (!isNaN(newScore) && newScore >= 0) {
+            if (editingTeam === "A") setTeamAScore(newScore);
+            if (editingTeam === "B") setTeamBScore(newScore);
+          }
+          setEditingTeam(null);
+        };
+
+        const handleScore = (team, increment) => {
+          if (team === "A" && teamAScore + increment >= 0) {
+            setTeamAScore(teamAScore + increment);
+          } else if (team === "B" && teamBScore + increment >= 0) {
+            setTeamBScore(teamBScore + increment);
+          }
+        };
+
+        // period
+        const [period, setPeriod] = useState(1);
+        const [overTime, setOverTime] = useState(false);
+        const [TOTimer, setTOTimer] = useState(0);
+
+        const handlePeriod = () => {
+          if (period < 4) {
+            setPeriod((pre) => pre + 1);
+          } else {
+            setPeriod((pre) => (pre = 1));
+          }
+        };
+
+        // fault
+        const [faults, setFaults] = useState({
+          teamAFaults: 0,
+          teamBFaults: 0,
+        });
+
+        const handleFaults = (team, increment) => {
+          if (team === "A" && faults.teamAFaults + increment >= 0) {
+            setFaults((prev) => ({
+              ...prev,
+              teamAFaults: faults.teamAFaults + increment,
+            }));
+          }
+          if (team === "B" && faults.teamBFaults + increment >= 0) {
+            setFaults((prev) => ({
+              ...prev,
+              teamBFaults: faults.teamBFaults + increment,
+            }));
+          }
+        };
+
+        // timeout
+        const [timeOutClock, setTimeOutClock] = useState(59);
+
+        const [isTeamATimingOut, setIsTeamATimingOut] = useState(false);
+        const [isTeamBTimingOut, setIsTeamBTimingOut] = useState(false);
+
+        const [teamsTotalTO, setTeamsTotalTO] = useState(2);
+        const [teamATOUsed, setTeamATOUsed] = useState(0);
+        const [teamBTOUsed, setTeamBTOUsed] = useState(0);
+
+        const [timeoutIntervalId, setTimeoutIntervalId] = useState(null);
+
+        useEffect(() => {
+          setFaults({
+            teamAFaults: 0,
+            teamBFaults: 0,
+          });
+          setTeamATOUsed(0);
+          setTeamBTOUsed(0);
+          if (period > 2) {
+            setTeamsTotalTO(3);
+          } else {
+            setTeamsTotalTO(2);
+          }
+        }, [period]);
+
+        const handleTimeOut = (team, increment) => {
+          if (team === "A" && increment == 1) {
+            if (teamATOUsed < teamsTotalTO) {
+              setTimeOutClock(59);
+              setIsTeamATimingOut(true);
+              setTeamATOUsed((prev) => prev + increment);
+              const id = setInterval(() => {
+                setTimeOutClock((prev) => {
+                  if (prev === 1) {
+                    clearInterval(id);
+                    setIsTeamATimingOut(false);
+                    playTOSound();
+                    return null;
+                  }
+                  return prev - 1;
+                });
+              }, 1000);
+              setTimeoutIntervalId(id);
+            }
+          } else if (team === "A" && increment == -1) {
+            if (teamATOUsed > 0) setTeamATOUsed((prev) => prev + increment);
+          }
+
+          if (team === "B" && increment == 1) {
+            if (teamBTOUsed < teamsTotalTO) {
+              setTimeOutClock(59);
+              setIsTeamBTimingOut(true);
+              setTeamBTOUsed((prev) => prev + increment);
+              const id = setInterval(() => {
+                setTimeOutClock((prev) => {
+                  if (prev === 1) {
+                    clearInterval(id);
+                    setIsTeamBTimingOut(false);
+                    playTOSound();
+                    return null;
+                  }
+                  return prev - 1;
+                });
+              }, 1000);
+              setTimeoutIntervalId(id);
+            }
+          } else if (team === "B" && increment == -1) {
+            if (teamBTOUsed > 0) setTeamBTOUsed((prev) => prev + increment);
+          }
+        };
+
+        const stopTO = (team) => {
+          clearInterval(timeoutIntervalId);
+          if (team == "A") setIsTeamATimingOut(false);
+          if (team == "B") setIsTeamBTimingOut(false);
+        };
+
+        const reset = () => {
+          setTimer(0);
+          setTimerIsRunning(false);
+          setTeamALogo(null);
+          setTeamBLogo(null);
+          if (is5vs5) {
+            setShotClock(24);
+          } else {
+            setShotClock(12);
+          }
+          setTeamAName("");
+          setTeamBName("");
+          setTeamAScore(0);
+          setTeamBScore(0);
+          setPeriod(1);
+          setOverTime(false);
+          setFaults({
+            teamAFaults: 0,
+            teamBFaults: 0,
+          });
+          setTeamsTotalTO(2);
+          setTeamATOUsed(0);
+          setTeamBTOUsed(0);
+          localStorage.clear();
+          setOpen(false);
+        };
+
+        useEffect(() => {
+          localStorage.setItem("timer", JSON.stringify(timer));
+          localStorage.setItem("shotClock", JSON.stringify(shotClock));
+          localStorage.setItem(
+            "scoreAndFault",
+            JSON.stringify({
+              teamAScore,
+              teamBScore,
+              teamAFaults: faults.teamAFaults,
+              teamBFaults: faults.teamBFaults,
+            })
+          );
+          localStorage.setItem("period", JSON.stringify(period));
+          localStorage.setItem("overTime", JSON.stringify(overTime));
+          localStorage.setItem(
+            "teamsTimeout",
+            JSON.stringify({
+              teamATOUsed,
+              teamBTOUsed,
+            })
+          );
+          localStorage.setItem("totalTimeout", JSON.stringify(teamsTotalTO));
+          localStorage.setItem(
+            "isTeamATimingOut",
+            JSON.stringify(isTeamATimingOut)
+          );
+          localStorage.setItem(
+            "isTeamBTimingOut",
+            JSON.stringify(isTeamBTimingOut)
+          );
+          localStorage.setItem("timeOutClock", JSON.stringify(timeOutClock));
+          localStorage.setItem("is5vs5", JSON.stringify(is5vs5));
+          localStorage.setItem(
+            "scoreboardScale",
+            JSON.stringify(scoreboardScale)
+          );
+        });
+
+        // shotcut
+
+        useEffect(() => {
+          window.addEventListener("keydown", handleKeyDown);
+
+          return () => {
+            window.removeEventListener("keydown", handleKeyDown);
+          };
+        });
+
+        const handleKeyDown = () => {
+          console.log(event.code);
+          if (is5vs5) {
+            if (event.code === "ControlLeft") {
+              setShotClock(24);
+            }
+            if (event.code === "ShiftLeft") {
+              setShotClock(14);
+            }
+          } else {
+            if (event.code === "ControlLeft") {
+              setShotClock(12);
+            }
+          }
+          if (event.code === "Space") {
+            event.preventDefault();
+            setTimerIsRunning((pre) => !pre);
+            return;
+          }
+          if (event.code === "PageUp") {
+            handleScore("A", 1);
+          }
+          if (event.code === "PageDown") {
+            handleScore("B", 1);
+          }
+        };
+
+        return (
+          <div className="bg-black min-w-full min-h-screen leading-none relative">
+            <div
+              style={{
+                transform: `scale(${remoteScale / 100})`,
+                transformOrigin: "top center",
+                backgroundImage: is5vs5
+                  ? `url('/assets/backgrounds/background5vs5.jpg')`
+                  : `url('/assets/backgrounds/background3vs3.jpg')`,
+              }}
+              className="app-container w-full h-full space-y-[10px] bg-center bg-cover px-[20px] pb-[20px] flex flex-col"
+            >
+              <div className="grid grid-cols-12 gap-[20px]">
+                <div className="col-span-3">
+                  <button
+                    onClick={() => setOpen(!open)}
+                    className="mt-[20px] px-4 py-2 bg-transparent border-2 border-white text-white rounded hover:bg-gray-900"
+                  >
+                    <div className="space-y-1.5">
+                      <span className="block w-6 h-0.5 bg-white"></span>
+                      <span className="block w-6 h-0.5 bg-white"></span>
+                      <span className="block w-6 h-0.5 bg-white"></span>
+                    </div>
+                  </button>
+                  <div className="logo flex items-center justify-center space-x-[30px]">
+                    <img className="w-[100px]" src="./assets/logos/rg.png" />
+                    <img className="w-[100px]" src="./assets/logos/brsl.png" />
+                  </div>
+                </div>
+                <div className="col-span-6 bg-[#9393934d] timer flex flex-col rounded-[10px]">
+                  <input
+                    className="text-center text-[40px] pb-[10px]"
+                    value={timerInputTimerValue}
+                    onChange={handleInput}
+                    placeholder="Nhập thời gian (00:00)"
+                  />
+                  <div
+                    onClick={handleTimerClick}
+                    style={{
+                      cursor: "pointer",
+                    }}
+                  >
+                    <div
+                      className="flex items-center justify-center text-[180px] font-roboto"
+                      style={{
+                        color: timerIsRunning ? "#61ff61" : "white",
+                      }}
+                    >
+                      {String(Math.floor(timer / 60)).padStart(2, "0")}:
+                      {String(timer % 60).padStart(2, "0")}
+                    </div>
+                  </div>
+                </div>
+                <div className="col-span-3 flex flex-col items-center justify-center">
+                  {leagueLogo && (
+                    <img
+                      src={leagueLogo}
+                      className="w-32 h-32 object-contain"
+                    />
+                  )}
+                  <input
+                    className="hidden"
+                    accept="image/*"
+                    type="file"
+                    id="logo-league"
+                    onChange={handleLeagueLogoUpload}
+                  />
+                  <label
+                    htmlFor="logo-league"
+                    className="px-4 py-2 bg-transparent border-2 border-white text-white rounded hover:bg-gray-900 cursor-pointer"
+                  >
+                    Logo giải
+                  </label>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-12 gap-[20px] flex-1">
+                <div className="col-span-4 flex items-center justify-center">
+                  {teamALogo && (
+                    <img src={teamALogo} className="w-32 h-32 object-contain" />
+                  )}
+                  <input
+                    className="hidden"
+                    accept="image/*"
+                    type="file"
+                    id="upload-logo-team-1"
+                    onChange={() => handleUploadTeamLogo("A")}
+                  />
+                  <label
+                    htmlFor="upload-logo-team-1"
+                    className="px-4 py-2 bg-transparent border-2 border-white text-white rounded hover:bg-gray-900 cursor-pointer"
+                  >
+                    Logo đội 1
+                  </label>
+                </div>
+
+                <div className="col-span-4 shotclock flex font-roboto text-[120px] text-center justify-between space-x-[20px]">
+                  <div className=" bg-[#9393934d] rounded-[10px] w-full">
+                    {editingShotClock && !timerIsRunning ? (
+                      <input
+                        className="w-full shotclock-editor"
+                        value={shotClock}
+                        onChange={(e) =>
+                          setShotClock(e.target.value.replace(/\D/g, ""))
+                        }
+                        onBlur={handleTimeSave}
+                        autoFocus
+                        maxLength="2"
+                      />
+                    ) : (
+                      <h1
+                        className={`${
+                          timerIsRunning ? "" : "cursor-pointer"
+                        }  shrink`}
+                        style={{
+                          margin: "auto",
+                          color: timerIsRunning ? "#61ff61" : "white",
+                        }}
+                        onClick={checkEditingShotClock}
+                      >
+                        {shotClock}
+                      </h1>
+                    )}
+                  </div>
+                  {is5vs5 ? (
+                    <div className="flex flex-col items-center justify-evenly text-[16px]">
+                      <button
+                        onClick={() => setShotClock(24)}
+                        className="px-4 py-2 bg-transparent border-2 border-white text-white rounded hover:bg-gray-900 cursor-pointer"
+                      >
+                        24s
+                      </button>
+                      <button
+                        onClick={() => setShotClock(14)}
+                        className="px-4 py-2 bg-transparent border-2 border-white text-white rounded hover:bg-gray-900 cursor-pointer"
+                      >
+                        14s
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center text-[16px]">
+                      <button
+                        onClick={() => setShotClock(12)}
+                        className="px-4 py-2 bg-transparent border-2 border-white text-white rounded hover:bg-gray-900 cursor-pointer"
+                      >
+                        12s
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                <div className="col-span-4 flex items-center justify-center">
+                  {teamBLogo && (
+                    <img src={teamBLogo} className="w-32 h-32 object-contain" />
+                  )}
+                  <input
+                    className="hidden"
+                    accept="image/*"
+                    type="file"
+                    id="upload-logo-team-2"
+                    onChange={() => handleUploadTeamLogo("B")}
+                  />
+                  <label
+                    htmlFor="upload-logo-team-2"
+                    className="px-4 py-2 bg-transparent border-2 border-white text-white rounded hover:bg-gray-900 cursor-pointer"
+                  >
+                    Logo đội 2
+                  </label>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-12 gap-[20px]">
+                <div className="col-span-4 team-a-info flex flex-col justify-center items-center gap-[20px]">
+                  <input
+                    className="w-2/3 p-2"
+                    placeholder="Nhập tên đội A"
+                    value={teamAName}
+                    onChange={(e) => setTeamAName(e.target.value)}
+                    label="Đội A"
+                  />
+                  <div className="w-full h-full border-2 border-white rounded-[10px] flex justify-center items-center space-x-[20px] px-[10px]">
+                    <button
+                      className="text-[16px] w-[60px] text-white border-2 border-white rounded-[10px] px-0 py-[10px] hover:bg-gray-900"
+                      onClick={() => handleScore("A", -1)}
+                    >
+                      - 1
+                    </button>
+                    <div className="w-2/3 text-center">
+                      {editingTeam === "A" ? (
+                        <input
+                          value={tempScore}
+                          onChange={(e) =>
+                            setTempScore(e.target.value.replace(/\D/g, ""))
+                          }
+                          onBlur={handleScoreSave}
+                          autoFocus
+                          maxLength="2"
+                          className="score-editor w-full"
+                        />
+                      ) : (
+                        <h1
+                          className="text-white font-roboto text-[200px]"
+                          onClick={() => handleScoreClick("A")}
+                        >
+                          {teamAScore.toString().padStart(2, "0")}
+                        </h1>
+                      )}
+                    </div>
+                    <button
+                      className="text-[16px] w-[60px] text-white border-2 border-white rounded-[10px] px-0 py-[10px] hover:bg-gray-900"
+                      onClick={() => handleScore("A", 1)}
+                    >
+                      + 1
+                    </button>
+                  </div>
+                </div>
+                <div className="col-span-4 flex flex-col space-y-[10px]">
+                  <div className="period flex border-2 border-white rounded-[10px] text-white font-roboto w-full text-center p-[10px] text-[50px] cursor-pointer">
+                    {!overTime ? (
+                      <h1 className="w-full" onClick={handlePeriod}>
+                        HIỆP <span>{period}</span>
+                      </h1>
+                    ) : (
+                      <h1 className="w-full" onClick={handlePeriod}>
+                        HIỆP PHỤ <span>{period}</span>
+                      </h1>
+                    )}
+                    <button
+                      className="text-[26px] cursor-pointer px-[20px] py-[10px] border-2 border-white rounded-[4px] hover:bg-gray-900"
+                      onClick={() => setOverTime((pre) => !pre)}
+                    >
+                      OT
+                    </button>
+                  </div>
+                  <div className="fault-and-to text-white font-roboto border-2 border-white rounded-[10px]">
+                    <div className="w-full flex border-b-2 border-white">
+                      <div className="border-r-2 border-white flex flex-col w-1/2 p-[10px]">
+                        <div className="team-a-f text-center">
+                          <h3 className="text-[40px]">LỖI</h3>
+                          <div className="text-[90px] flex items-center space-x-[20px]">
+                            <button
+                              className="text-[16px] border-2 border-white rounded-[10px] px-0 py-[10px] w-full hover:bg-gray-900"
+                              onClick={() => handleFaults("A", -1)}
+                            >
+                              - 1
+                            </button>
+                            <div className="">{faults.teamAFaults}</div>
+                            <button
+                              className="text-[16px] border-2 border-white rounded-[10px] px-0 py-[10px] w-full hover:bg-gray-900"
+                              onClick={() => handleFaults("A", 1)}
+                            >
+                              + 1
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex flex-col w-1/2 p-[10px]">
+                        <div className="team-b-f text-center">
+                          <h3 className="text-[40px]">LỖI</h3>
+                          <div className="text-[90px] flex items-center space-x-[20px]">
+                            <button
+                              className="text-[16px] border-2 border-white rounded-[10px] px-0 py-[10px] w-full hover:bg-gray-900"
+                              onClick={() => handleFaults("B", -1)}
+                            >
+                              - 1
+                            </button>
+                            <div className="">{faults.teamBFaults}</div>
+                            <button
+                              className="text-[16px] border-2 border-white rounded-[10px] px-0 py-[10px] w-full hover:bg-gray-900"
+                              onClick={() => handleFaults("B", 1)}
+                            >
+                              + 1
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="w-full flex">
+                      <div className="team-a-t border-r-2 border-white flex items-center justify-center w-1/2 p-[10px] space-x-[10px]">
+                        {!isTeamATimingOut && (
+                          <button
+                            className="w-[36px] h-[36px] border bg-transparent border-2 rounded-[50%] hover:bg-gray-900"
+                            onClick={() => handleTimeOut("A", -1)}
+                          >
+                            - 1
+                          </button>
+                        )}
+                        {isTeamATimingOut ? (
+                          <span className="text-white text-[20px] font-roboto">
+                            {timeOutClock}s
+                          </span>
+                        ) : (
+                          <span className="text-white text-[20px] font-roboto">
+                            Hội ý {teamATOUsed}/{teamsTotalTO}
+                          </span>
+                        )}
+                        {!isTeamATimingOut ? (
+                          <button
+                            className="w-[36px] h-[36px] border bg-transparent border-2 rounded-[50%] hover:bg-gray-900"
+                            onClick={() => handleTimeOut("A", 1)}
+                          >
+                            + 1
+                          </button>
+                        ) : (
+                          <button
+                            className="w-[36px] h-[36px] border bg-transparent border-2 rounded-[50%] hover:bg-gray-900 flex items-center justify-center"
+                            onClick={() => stopTO("A")}
+                          >
+                            <img
+                              className="w-[12px] invert"
+                              src="./assets/icons/stop.png"
+                            />
+                          </button>
+                        )}
+                      </div>
+                      <div className="team-b-t flex items-center justify-center w-1/2 p-[10px] space-x-[10px]">
+                        {!isTeamBTimingOut && (
+                          <button
+                            className="w-[36px] h-[36px] border bg-transparent border-2 rounded-[50%] hover:bg-gray-900"
+                            onClick={() => handleTimeOut("B", -1)}
+                          >
+                            - 1
+                          </button>
+                        )}
+                        {isTeamBTimingOut ? (
+                          <span className="text-white text-[20px] font-roboto">
+                            {timeOutClock}s
+                          </span>
+                        ) : (
+                          <span className="text-white text-[20px] font-roboto">
+                            Hội ý {teamBTOUsed}/{teamsTotalTO}
+                          </span>
+                        )}
+                        {!isTeamBTimingOut ? (
+                          <button
+                            className="w-[36px] h-[36px] border bg-transparent border-2 rounded-[50%] hover:bg-gray-900"
+                            onClick={() => handleTimeOut("B", 1)}
+                          >
+                            + 1
+                          </button>
+                        ) : (
+                          <button
+                            className="w-[36px] h-[36px] border bg-transparent border-2 rounded-[50%] hover:bg-gray-900 flex items-center justify-center"
+                            onClick={() => stopTO("B")}
+                          >
+                            <img
+                              className="w-[12px] invert"
+                              src="./assets/icons/stop.png"
+                            />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="col-span-4 team-b-info flex flex-col justify-center items-center gap-[20px]">
+                  <input
+                    className="w-2/3 p-2"
+                    placeholder="Nhập tên đội B"
+                    value={teamBName}
+                    onChange={(e) => setTeamBName(e.target.value)}
+                    label="Đội B"
+                  />
+                  <div className="w-full h-full border-2 border-white rounded-[10px] flex justify-center items-center space-x-[20px] px-[10px]">
+                    <button
+                      className="text-[16px] w-[60px] text-white border-2 border-white rounded-[10px] px-0 py-[10px] hover:bg-gray-900"
+                      onClick={() => handleScore("B", -1)}
+                    >
+                      - 1
+                    </button>
+                    <div className="w-2/3 text-center">
+                      {editingTeam === "B" ? (
+                        <input
+                          value={tempScore}
+                          onChange={(e) =>
+                            setTempScore(e.target.value.replace(/\D/g, ""))
+                          }
+                          onBlur={handleScoreSave}
+                          autoFocus
+                          maxLength="2"
+                          className="score-editor w-full"
+                        />
+                      ) : (
+                        <h1
+                          className="text-white font-roboto text-[200px]"
+                          onClick={() => handleScoreClick("B")}
+                        >
+                          {teamBScore.toString().padStart(2, "0")}
+                        </h1>
+                      )}
+                    </div>
+                    <button
+                      className="text-[16px] w-[60px] text-white border-2 border-white rounded-[10px] px-0 py-[10px] hover:bg-gray-900"
+                      onClick={() => handleScore("B", 1)}
+                    >
+                      + 1
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {open && (
+              <div
+                className="absolute top-0 h-screen left-0 w-screen bg-black bg-opacity-80 z-10"
+                onClick={() => setOpen(false)}
+              />
+            )}
+            {open && (
+              <div
+                ref={menuRef}
+                className="absolute top-0 h-screen left-0 w-1/4 bg-white border shadow-lg p-3 z-50 text-left"
+              >
+                <div className="w-full h-full flex flex-col items-center justify-center scale space-y-[30px] font-roboto">
+                  <div className="flex flex-col items-center justify-center pb-[30px] border-b-2 w-full">
+                    <h4 className="pb-[20px] text-[20px]">
+                      Chỉnh để vừa màn hình
+                    </h4>
+                    <div className="flex items-center justify-center p-4 w-full">
+                      <div className="w-1/2 border-r-2 flex items-center justify-center flex-col">
+                        <h4 className="pb-[20px] text[16px]">
+                          Bảng điều khiển
+                        </h4>
+                        <input
+                          type="range"
+                          min="50"
+                          max="100"
+                          value={remoteScale}
+                          onChange={handleRemoteScale}
+                        />
+                        <h1>{remoteScale}</h1>
+                      </div>
+                      <div className="w-1/2 flex items-center justify-center flex-col">
+                        <h4 className="pb-[20px] text[16px]">Bảng điểm</h4>
+                        <input
+                          type="range"
+                          min="50"
+                          max="100"
+                          value={scoreboardScale}
+                          onChange={handleScoreboardScale}
+                        />
+                        <h1>{scoreboardScale}</h1>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-center pb-[30px] border-b-2 w-full">
+                    <div className="p-[4px] w-1/2 text-center border-r-2 border-gray-500 flex flex-col items-center justify-center space-y-[20px]">
+                      <button className="pb-[4px]">Màu đội A</button>
+                      <input
+                        type="color"
+                        value={teamAColor}
+                        onChange={handleTeamAColor}
+                      />
+                    </div>
+                    <div className="p-[4px] w-1/2 text-center flex flex-col items-center justify-center space-y-[20px]">
+                      <button className="pb-[4px]">Màu đội B</button>
+                      <input
+                        type="color"
+                        value={teamBColor}
+                        onChange={handleTeamBColor}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-center justify-center pb-[30px] border-b-2 w-full">
+                    <h4 className="pb-[20px] text-[20px]">Thi đấu</h4>
+                    <div className="flex justify-between gap-4">
+                      <button
+                        onClick={() => setIs5vs5(false)}
+                        className="w-1/2 border cursor-pointer py-[15px] px-[30px] hover:bg-gray-300"
+                      >
+                        3vs3
+                      </button>
+                      <button
+                        onClick={() => setIs5vs5(true)}
+                        className="w-1/2 border cursor-pointer py-[15px] px-[30px] hover:bg-gray-300"
+                      >
+                        5vs5
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-center space-x-[60px] pb-[30px] border-b-2 w-full">
+                    <div>
+                      <h4 className="pb-[20px] text[16px]">Timeout</h4>
+                      <button
+                        className="w-[36px] h-[36px] border bg-transparent border-2 rounded-[50%] hover:bg-gray-900 flex items-center justify-center group"
+                        onClick={playSound}
+                      >
+                        <img
+                          className="w-[20px] group-hover:invert"
+                          src="./assets/sounds/speaker.svg"
+                        />
+                      </button>
+                    </div>
+                    <div>
+                      <h4 className="pb-[20px] text[16px]">24s</h4>
+                      <button
+                        className="w-[36px] h-[36px] border bg-transparent border-2 rounded-[50%] hover:bg-gray-900 flex items-center justify-center group"
+                        onClick={playTOSound}
+                      >
+                        <img
+                          className="w-[20px] group-hover:invert"
+                          src="./assets/sounds/speaker.svg"
+                        />
+                      </button>
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-center space-x-4 pb-[30px] w-full">
+                    <button
+                      onClick={reset}
+                      className="w-1/2 border cursor-pointer py-[15px] px-[30px] hover:bg-gray-300"
+                    >
+                      Reset tất cả
+                    </button>
+                    <button
+                      onClick={() => window.open("scoreboard.html", "_blank")}
+                      className="w-1/2 text-white bg-[#c82525] cursor-pointer py-[15px] px-[30px] hover:bg-[#ab0101]"
+                    >
+                      Mở bảng điểm
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      };
+      ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+  </body>
+</html>

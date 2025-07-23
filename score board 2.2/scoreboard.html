@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Score Board</title>
+    <link rel="icon" href="/assets/website-icon.png" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Rowdies:wght@700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Roboto:ital,wght@0,800;1,800&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="root"></div>
+    <script
+      crossorigin
+      src="https://unpkg.com/react@18/umd/react.development.js"
+    ></script>
+    <script
+      crossorigin
+      src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"
+    ></script>
+
+    <!-- Tailwind + GSAP -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      tailwind.config = {
+        theme: {
+          extend: {
+            fontFamily: {
+              roboto: ['"Roboto"', "serif"],
+              rowdies: ['"Rowdies"', "serif"],
+            },
+          },
+        },
+      };
+    </script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <link rel="stylesheet" href="style.css" />;
+    <script type="text/babel">
+      const App = () => {
+        const { useState, useEffect, useRef } = React;
+
+        const [leagueLogo, setLeagueLogo] = useState("");
+        const [teamALogo, setTeamALogo] = useState("");
+        const [teamBLogo, setTeamBLogo] = useState("");
+        const leagueLogoRef = useRef(null);
+        const [teamAName, setTeamAName] = useState("");
+        const [teamBName, setTeamBName] = useState("");
+        const [teamAColor, setTeamAColor] = useState("white");
+        const [teamBColor, setTeamBColor] = useState("white");
+        const [timer, setTimer] = useState(0);
+        const [shotClock, setShotClock] = useState(24);
+        const [scoreAndFault, setScoreAndFault] = useState({
+          teamAScore: 0,
+          teamBScore: 0,
+          teamAFaults: 0,
+          teamBFaults: 0,
+        });
+        const [period, setPeriod] = useState(1);
+        const [overTime, setOverTime] = useState(false);
+        const [teamsTimeout, setteamsTimeout] = useState({
+          teamATOUsed: 0,
+          teamBTOUsed: 0,
+        });
+        const [totalTO, setTotalTO] = useState(2);
+        const [timeOutClock, setTimeOutClock] = useState(59);
+        const [isTeamATimingOut, setIsTeamATimingOut] = useState(false);
+        const [isTeamBTimingOut, setIsTeamBTimingOut] = useState(false);
+        const [is5vs5, setIs5vs5] = useState(true);
+        const [scoreboardScale, setScoreboardScale] = useState(100);
+
+        window.addEventListener("storage", (event) => {
+          // console.log(event);
+          switch (event.key) {
+            case "leagueLogo":
+              setLeagueLogo(localStorage.getItem("leagueLogo"));
+              break;
+            case "teamALogo":
+              setTeamALogo(localStorage.getItem("teamALogo"));
+              break;
+            case "teamBLogo":
+              setTeamBLogo(localStorage.getItem("teamBLogo"));
+              break;
+            case "teamAName":
+              setTeamAName(localStorage.getItem("teamAName"));
+              break;
+            case "teamBName":
+              setTeamBName(localStorage.getItem("teamBName"));
+              break;
+            case "teamAColor":
+              setTeamAColor(localStorage.getItem("teamAColor"));
+              break;
+            case "teamBColor":
+              setTeamBColor(localStorage.getItem("teamBColor"));
+              break;
+            case "timer":
+              setTimer(parseInt(JSON.parse(localStorage.getItem("timer"))));
+              break;
+            case "shotClock":
+              setShotClock(
+                parseInt(JSON.parse(localStorage.getItem("shotClock")))
+              );
+              break;
+            case "scoreAndFault":
+              setScoreAndFault(
+                JSON.parse(localStorage.getItem("scoreAndFault"))
+              );
+              console.log(scoreAndFault);
+              break;
+            case "period":
+              setPeriod(parseInt(JSON.parse(localStorage.getItem("period"))));
+              break;
+            case "overTime":
+              setOverTime(JSON.parse(localStorage.getItem("overTime")));
+              break;
+            case "teamsTimeout":
+              setteamsTimeout(JSON.parse(localStorage.getItem("teamsTimeout")));
+              break;
+            case "totalTO":
+              setTotalTO(parseInt(JSON.parse(localStorage.getItem("totalTO"))));
+              break;
+            case "timeOutClock":
+              setTimeOutClock(
+                parseInt(JSON.parse(localStorage.getItem("timeOutClock")))
+              );
+              break;
+            case "isTeamATimingOut":
+              setIsTeamATimingOut(
+                JSON.parse(localStorage.getItem("isTeamATimingOut"))
+              );
+              break;
+            case "isTeamBTimingOut":
+              setIsTeamBTimingOut(
+                JSON.parse(localStorage.getItem("isTeamBTimingOut"))
+              );
+              break;
+            case "is5vs5":
+              setIs5vs5(JSON.parse(localStorage.getItem("is5vs5")));
+              break;
+            case "scoreboardScale":
+              setScoreboardScale(
+                parseInt(JSON.parse(localStorage.getItem("scoreboardScale")))
+              );
+              break;
+          }
+        });
+
+        return (
+          <div className="bg-black w-screen h-screen leading-none relative">
+            <div
+              style={{
+                transform: `scale(${scoreboardScale / 100})`,
+                transformOrigin: "top center",
+                backgroundImage: is5vs5
+                  ? `url('/assets/backgrounds/background5vs5.jpg')`
+                  : `url('/assets/backgrounds/background3vs3.jpg')`,
+              }}
+              className="app-container w-full h-full bg-center bg-cover space-y-[20px] p-[20px] flex flex-col"
+            >
+              <div className="grid grid-cols-12 gap-[20px] flex-1 relative">
+                <div className="col-span-3 flex items-center justify-center">
+                  {teamALogo ? (
+                    <img src={teamALogo} initialX={0} initialY={0} />
+                  ) : (
+                    <h1
+                      className="text-white text-center text-[60px] font-roboto"
+                      style={{ color: teamAColor }}
+                    >
+                      {teamAName}
+                    </h1>
+                  )}
+                </div>
+                <div className="col-span-6 flex flex-col items-center justify-center">
+                  <div className="flex items-center justify-start p-[20px] w-full bg-[rgba(255,255,255,0.7)] flex-1">
+                    <div className="logo flex flex-col items-center overflow-hidden justify-center">
+                      <img
+                        className="w-[200px] pb-[10px]"
+                        src="./assets/logos/rg.png"
+                      />
+                      <img
+                        className="w-[200px]"
+                        src="./assets/logos/brsl.png"
+                      />
+                    </div>
+                    <div ref={leagueLogoRef} className="w-full h-full">
+                      {leagueLogo && (
+                        <LogoTeam
+                          src={leagueLogo}
+                          initialX={0}
+                          initialY={0}
+                          parentRef={leagueLogoRef}
+                        />
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center justify-center text-[250px] font-roboto text-white bg-[#9393934d] w-full p-[20px]">
+                    {String(Math.floor(timer / 60)).padStart(2, "0")}:
+                    {String(timer % 60).padStart(2, "0")}
+                  </div>
+                </div>
+                <div className="col-span-3 flex items-center overflow-hidden justify-center">
+                  {teamBLogo ? (
+                    <img src={teamBLogo} initialX={0} initialY={0} />
+                  ) : (
+                    <h1
+                      className="text-white text-center text-[60px] font-roboto"
+                      style={{ color: teamBColor }}
+                    >
+                      {teamBName}
+                    </h1>
+                  )}
+                </div>
+              </div>
+
+              <div className="grid grid-cols-12 gap-[20px] flex-1">
+                <div className="col-span-4 team-a-info flex flex-col justify-center items-center gap-[20px] text-white font-roboto">
+                  <div className="w-full h-full border-2 border-white rounded-[10px] flex flex-col justify-center items-center px-[10px]">
+                    <h3
+                      className="text-center text-[40px] pb-[20px]"
+                      style={{ color: teamAColor }}
+                    >
+                      {teamALogo ? (teamAName ? teamAName : "") : ""}
+                    </h3>
+                    <h1 className=" text-[380px]">
+                      {scoreAndFault.teamAScore
+                        ? scoreAndFault.teamAScore.toString().padStart(2, "0")
+                        : "00"}
+                    </h1>
+                  </div>
+                </div>
+                <div className="col-span-4 flex flex-col space-y-[10px]">
+                  <div className="w-full flex items-center justify-center flex-1">
+                    <div
+                      className="font-roboto text-[170px] bg-[#9393934d] rounded-[10px] py-[10px] h-full w-full px-[20px] text-center"
+                      style={{ color: shotClock <= 5 ? "red" : "white" }}
+                    >
+                      {shotClock}
+                    </div>
+                  </div>
+                  <div className="fault-and-to text-white font-roboto border-2 border-white rounded-[10px]">
+                    <div className="w-full flex">
+                      <div className="border-r-2 border-white flex flex-col w-1/2 pt-[10px] justify-evenly">
+                        <div className="team-a-f text-center">
+                          <h3 className="text-[40px]">LỖI</h3>
+                          <div className="text-[90px] flex items-center justify-center w-full border-b-2 border-white">
+                            <div className="">{scoreAndFault.teamAFaults}</div>
+                          </div>
+                          <div className="text-white text-[20px] font-roboto h-full w-full my-[10px]">
+                            Hội ý {teamsTimeout.teamATOUsed}/{totalTO}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="period flex flex-col text-white font-roboto w-full text-center p-[10px] text-[30px] border-r-2 border-white">
+                        {!overTime ? (
+                          <h1 className="w-full">
+                            HIỆP{" "}
+                            <div className="text-[120px] pt-[10px]">
+                              {period}
+                            </div>
+                          </h1>
+                        ) : (
+                          <h1 className="w-full">
+                            HIỆP PHỤ{" "}
+                            <div className="text-[120px] pt-[10px]">
+                              {period}
+                            </div>
+                          </h1>
+                        )}
+                      </div>
+                      <div className="flex flex-col w-1/2 pt-[10px] justify-evenly">
+                        <div className="team-b-f text-center">
+                          <h3 className="text-[40px]">LỖI</h3>
+                          <div className="text-[90px] flex items-center justify-center w-full border-b-2 border-white">
+                            <div className="">{scoreAndFault.teamBFaults}</div>
+                          </div>
+                          <div className="text-white text-[20px] font-roboto my-[10px]">
+                            Hội ý {teamsTimeout.teamBTOUsed}/{totalTO}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="col-span-4 team-b-info flex flex-col justify-center items-center gap-[20px] text-white font-roboto">
+                  <div className="w-full h-full border-2 border-white rounded-[10px] flex flex-col justify-center items-center px-[10px]">
+                    <h3
+                      className="text-center text-[40px] pb-[20px]"
+                      style={{ color: teamBColor }}
+                    >
+                      {teamBLogo ? (teamBName ? teamBName : "") : ""}
+                    </h3>
+                    <h1 className=" text-[350px]">
+                      {scoreAndFault.teamBScore
+                        ? scoreAndFault.teamBScore.toString().padStart(2, "0")
+                        : "00"}
+                    </h1>
+                  </div>
+                </div>
+              </div>
+            </div>
+            {isTeamATimingOut || isTeamBTimingOut ? (
+              <div className="fixed inset-0 z-50 flex items-center justify-center">
+                <div className="absolute inset-0 bg-black bg-opacity-80"></div>
+                <div
+                  className="relative w-full h-1/2 flex flex-col items-center justify-center bg-center bg-cover"
+                  style={{
+                    transform: `scale(${scoreboardScale / 100})`,
+                    transformOrigin: "center",
+                    backgroundImage:
+                      "url('/assets/backgrounds/modal-background.png')",
+                  }}
+                >
+                  <div className="text-white text-center w-full h-full p-[40px] flex flex-col space-y-[20px] font-roboto">
+                    <h1 className="text-center w-full text-[80px]">HỘI Ý</h1>
+                    <div className="flex items-center justify-center grid grid-cols-12 flex-1">
+                      <div className="col-span-4 flex flex-col items-center justify-center space-y-[20px]">
+                        <img src={teamALogo} className="w-[160px] h-auto" />
+                        <h3 className="text-[60px]">
+                          {scoreAndFault.teamAScore.toString().padStart(2, "0")}
+                        </h3>
+                      </div>
+                      <div className="col-span-4 text-center space-y-[10px]">
+                        <h2 className="text-[30px]">
+                          {isTeamATimingOut ? teamAName : teamBName}
+                        </h2>
+                        <h2 className="text-[160px]">{timeOutClock}</h2>
+                        <h2 className="text-[30px]">
+                          Lượt{" "}
+                          {isTeamATimingOut
+                            ? `${teamsTimeout.teamATOUsed}/${totalTO}`
+                            : `${teamsTimeout.teamBTOUsed}/${totalTO}`}{" "}
+                        </h2>
+                      </div>
+                      <div className="col-span-4 flex flex-col items-center justify-center space-y-[20px]">
+                        <img src={teamBLogo} className="w-[160px] h-auto" />
+                        <h3 className="text-[60px]">
+                          {scoreAndFault.teamBScore.toString().padStart(2, "0")}
+                        </h3>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <></>
+            )}
+          </div>
+        );
+      };
+
+      const LogoTeam = ({ src, initialX, initialY, parentRef }) => {
+        const { useState, useEffect, useRef } = React;
+
+        const [position, setPosition] = useState({ x: initialX, y: initialY });
+        const [scale, setScale] = useState(1);
+        const [dragging, setDragging] = useState(false);
+        const offset = useRef({ x: 0, y: 0 });
+
+        const handleMouseDown = (e) => {
+          setDragging(true);
+          offset.current = {
+            x: e.clientX - position.x,
+            y: e.clientY - position.y,
+          };
+        };
+
+        const handleMouseMove = (e) => {
+          if (!dragging) return;
+          setPosition({
+            x: e.clientX - offset.current.x,
+            y: e.clientY - offset.current.y,
+          });
+        };
+
+        const handleMouseUp = () => setDragging(false);
+
+        const handleWheel = (e) => {
+          e.preventDefault();
+          const delta = -e.deltaY;
+          const factor = delta > 0 ? 0.05 : -0.05;
+          setScale((prev) => Math.max(0.1, prev + factor));
+        };
+
+        useEffect(() => {
+          window.addEventListener("mousemove", handleMouseMove);
+          window.addEventListener("mouseup", handleMouseUp);
+          return () => {
+            window.removeEventListener("mousemove", handleMouseMove);
+            window.removeEventListener("mouseup", handleMouseUp);
+          };
+        }, [dragging]);
+
+        return (
+          <img
+            src={src}
+            alt="Draggable"
+            className="absolute cursor-move select-none"
+            onMouseDown={handleMouseDown}
+            onWheel={handleWheel}
+            style={{
+              top: position.y,
+              left: position.x,
+              transform: `scale(${scale})`,
+              transformOrigin: "top left",
+            }}
+          />
+        );
+      };
+
+      ReactDOM.createRoot(document.getElementById("root")).render(<App />);
+    </script>
+  </body>
+</html>

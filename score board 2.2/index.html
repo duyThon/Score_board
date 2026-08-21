@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Remote</title>
-    <link rel="icon" href="/assets/website-icon.png" />
+    <link rel="icon" href="./assets/website-icon.png" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -57,6 +57,78 @@
       const App = () => {
         const { useState, useEffect, useRef } = React;
 
+        // Đọc dữ liệu đã lưu trong localStorage để hydrate lại UI khi tải/refresh trang
+        const readStoredJSON = (key, fallback) => {
+          const raw = localStorage.getItem(key);
+          if (raw === null) return fallback;
+          try {
+            return JSON.parse(raw);
+          } catch (e) {
+            return fallback;
+          }
+        };
+        const readStoredString = (key, fallback) => {
+          const raw = localStorage.getItem(key);
+          return raw === null ? fallback : raw;
+        };
+
+        // Ghi vào localStorage an toàn: nếu vượt hạn mức (~5MB) thì không làm sập app
+        const safeSetItem = (key, value) => {
+          try {
+            localStorage.setItem(key, value);
+            return true;
+          } catch (err) {
+            console.error("Không lưu được vào localStorage:", key, err);
+            return false;
+          }
+        };
+
+        // Thu nhỏ ảnh logo trước khi lưu để không vượt hạn mức localStorage.
+        // Giữ định dạng PNG để không mất nền trong suốt của logo.
+        const LOGO_MAX_SIZE = 400;
+        const compressImageFile = (file, maxSize = LOGO_MAX_SIZE) =>
+          new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onerror = () => reject(new Error("Không đọc được file ảnh"));
+            reader.onload = () => {
+              const img = new Image();
+              img.onerror = () => reject(new Error("File ảnh không hợp lệ"));
+              img.onload = () => {
+                const largestSide = Math.max(img.width, img.height);
+                const ratio = Math.min(1, maxSize / largestSide);
+                const w = Math.max(1, Math.round(img.width * ratio));
+                const h = Math.max(1, Math.round(img.height * ratio));
+                try {
+                  const canvas = document.createElement("canvas");
+                  canvas.width = w;
+                  canvas.height = h;
+                  const ctx = canvas.getContext("2d");
+                  ctx.drawImage(img, 0, 0, w, h);
+                  const resized = canvas.toDataURL("image/png");
+                  // Nếu bản thu nhỏ lại nặng hơn bản gốc thì dùng bản gốc
+                  resolve(
+                    resized.length < reader.result.length
+                      ? resized
+                      : reader.result
+                  );
+                } catch (err) {
+                  resolve(reader.result);
+                }
+              };
+              img.src = reader.result;
+            };
+            reader.readAsDataURL(file);
+          });
+
+        // Thông báo ngắn khi lưu logo thất bại (không dùng alert để tránh chặn UI)
+        const [logoNotice, setLogoNotice] = useState("");
+        const logoNoticeTimerRef = useRef(null);
+        const showLogoNotice = (message) => {
+          setLogoNotice(message);
+          clearTimeout(logoNoticeTimerRef.current);
+          logoNoticeTimerRef.current = setTimeout(() => setLogoNotice(""), 6000);
+        };
+
         useEffect(() => {
           const handleResize = () => {
             document.documentElement.style.setProperty(
@@ -86,10 +158,18 @@
         const [open, setOpen] = useState(false);
         const menuRef = useRef(null);
         const [remoteScale, setRemoteScale] = useState(100);
-        const [scoreboardScale, setScoreboardScale] = useState(100);
-        const [is5vs5, setIs5vs5] = useState(true);
-        const [teamAColor, setTeamAColor] = useState("#ffffff");
-        const [teamBColor, setTeamBColor] = useState("#cccccc");
+        const [scoreboardScale, setScoreboardScale] = useState(() =>
+          readStoredJSON("scoreboardScale", 100)
+        );
+        const [is5vs5, setIs5vs5] = useState(() =>
+          readStoredJSON("is5vs5", true)
+        );
+        const [teamAColor, setTeamAColor] = useState(() =>
+          readStoredString("teamAColor", "#ffffff")
+        );
+        const [teamBColor, setTeamBColor] = useState(() =>
+          readStoredString("teamBColor", "#cccccc")
+        );
 
         useEffect(() => {
           if (open && menuRef.current) {
@@ -114,18 +194,18 @@
         const handleTeamAColor = (e) => {
           const newColor = e.target.value;
           setTeamAColor(newColor);
-          localStorage.setItem("teamAColor", newColor);
+          safeSetItem("teamAColor", newColor);
         };
 
         const handleTeamBColor = (e) => {
           const newColor = e.target.value;
           setTeamBColor(newColor);
-          localStorage.setItem("teamBColor", newColor);
+          safeSetItem("teamBColor", newColor);
         };
 
         // Timer
         const [timerInputTimerValue, setTimerInputTimerValue] = useState("");
-        const [timer, setTimer] = useState(0);
+        const [timer, setTimer] = useState(() => readStoredJSON("timer", 0));
         const [timerIsRunning, setTimerIsRunning] = useState(false);
         const intervalTimerRef = useRef(null);
 
@@ -171,45 +251,73 @@
         };
 
         // Logo giải
-        const [leagueLogo, setLeagueLogo] = useState(null);
+        const [leagueLogo, setLeagueLogo] = useState(() =>
+          readStoredString("leagueLogo", null)
+        );
 
         const handleLeagueLogoUpload = (e) => {
-          const file = e.target.files[0];
-          if (file) {
-            const reader = new FileReader();
-            reader.onload = () => {
-              const base64 = reader.result;
+          const input = e.target;
+          const file = input.files[0];
+          if (!file) return;
+          compressImageFile(file)
+            .then((base64) => {
               setLeagueLogo(base64);
-              localStorage.setItem("leagueLogo", base64);
-            };
-            reader.readAsDataURL(file);
-          }
+              if (!safeSetItem("leagueLogo", base64)) {
+                showLogoNotice(
+                  "Logo giải quá lớn, không lưu được. Hãy dùng ảnh nhỏ hơn."
+                );
+              }
+            })
+            .catch((err) => {
+              console.error(err);
+              showLogoNotice("Không đọc được file logo giải.");
+            })
+            .finally(() => {
+              // Cho phép chọn lại cùng một file
+              input.value = "";
+            });
         };
 
         // Logo đội
-        const [teamALogo, setTeamALogo] = useState(null);
-        const [teamBLogo, setTeamBLogo] = useState(null);
+        const [teamALogo, setTeamALogo] = useState(() =>
+          readStoredString("teamALogo", null)
+        );
+        const [teamBLogo, setTeamBLogo] = useState(() =>
+          readStoredString("teamBLogo", null)
+        );
 
-        const handleUploadTeamLogo = (team) => {
-          const file = event.target.files[0];
-          if (file) {
-            const reader = new FileReader();
-            reader.onload = () => {
-              const base64 = reader.result;
+        const handleUploadTeamLogo = (team, e) => {
+          const input = e.target;
+          const file = input.files[0];
+          if (!file) return;
+          compressImageFile(file)
+            .then((base64) => {
+              const key = team === "A" ? "teamALogo" : "teamBLogo";
               if (team === "A") {
                 setTeamALogo(base64);
-                localStorage.setItem("teamALogo", base64);
               } else {
                 setTeamBLogo(base64);
-                localStorage.setItem("teamBLogo", base64);
               }
-            };
-            reader.readAsDataURL(file);
-          }
+              if (!safeSetItem(key, base64)) {
+                showLogoNotice(
+                  `Logo đội ${team} quá lớn, không lưu được. Hãy dùng ảnh nhỏ hơn.`
+                );
+              }
+            })
+            .catch((err) => {
+              console.error(err);
+              showLogoNotice(`Không đọc được file logo đội ${team}.`);
+            })
+            .finally(() => {
+              // Cho phép chọn lại cùng một file
+              input.value = "";
+            });
         };
 
         // Shot clock
-        const [shotClock, setShotClock] = useState(24);
+        const [shotClock, setShotClock] = useState(() =>
+          readStoredJSON("shotClock", 24)
+        );
         const [editingShotClock, setEditingShotClock] = useState(null);
 
         useEffect(() => {
@@ -218,7 +326,13 @@
           }
         }, [shotClock]);
 
+        // Bỏ qua lần chạy đầu tiên (khi mount) để không ghi đè shotClock vừa hydrate từ localStorage
+        const is5vs5MountRef = useRef(true);
         useEffect(() => {
+          if (is5vs5MountRef.current) {
+            is5vs5MountRef.current = false;
+            return;
+          }
           if (!is5vs5) {
             setShotClock(12);
           }
@@ -258,20 +372,28 @@
         };
 
         // team name
-        const [teamAName, setTeamAName] = useState("");
-        const [teamBName, setTeamBName] = useState("");
+        const [teamAName, setTeamAName] = useState(() =>
+          readStoredString("teamAName", "")
+        );
+        const [teamBName, setTeamBName] = useState(() =>
+          readStoredString("teamBName", "")
+        );
 
         useEffect(() => {
-          localStorage.setItem("teamAName", teamAName);
+          safeSetItem("teamAName", teamAName);
         }, [teamAName]);
 
         useEffect(() => {
-          localStorage.setItem("teamBName", teamBName);
+          safeSetItem("teamBName", teamBName);
         }, [teamBName]);
 
         // score
-        const [teamAScore, setTeamAScore] = useState(0);
-        const [teamBScore, setTeamBScore] = useState(0);
+        const [teamAScore, setTeamAScore] = useState(
+          () => readStoredJSON("scoreAndFault", {}).teamAScore ?? 0
+        );
+        const [teamBScore, setTeamBScore] = useState(
+          () => readStoredJSON("scoreAndFault", {}).teamBScore ?? 0
+        );
         const [editingTeam, setEditingTeam] = useState(null);
         const [tempScore, setTempScore] = useState("");
 
@@ -298,8 +420,10 @@
         };
 
         // period
-        const [period, setPeriod] = useState(1);
-        const [overTime, setOverTime] = useState(false);
+        const [period, setPeriod] = useState(() => readStoredJSON("period", 1));
+        const [overTime, setOverTime] = useState(() =>
+          readStoredJSON("overTime", false)
+        );
         const [TOTimer, setTOTimer] = useState(0);
 
         const handlePeriod = () => {
@@ -311,9 +435,12 @@
         };
 
         // fault
-        const [faults, setFaults] = useState({
-          teamAFaults: 0,
-          teamBFaults: 0,
+        const [faults, setFaults] = useState(() => {
+          const stored = readStoredJSON("scoreAndFault", {});
+          return {
+            teamAFaults: stored.teamAFaults ?? 0,
+            teamBFaults: stored.teamBFaults ?? 0,
+          };
         });
 
         const handleFaults = (team, increment) => {
@@ -332,18 +459,36 @@
         };
 
         // timeout
-        const [timeOutClock, setTimeOutClock] = useState(59);
+        const [timeOutClock, setTimeOutClock] = useState(() =>
+          readStoredJSON("timeOutClock", 59)
+        );
 
-        const [isTeamATimingOut, setIsTeamATimingOut] = useState(false);
-        const [isTeamBTimingOut, setIsTeamBTimingOut] = useState(false);
+        const [isTeamATimingOut, setIsTeamATimingOut] = useState(() =>
+          readStoredJSON("isTeamATimingOut", false)
+        );
+        const [isTeamBTimingOut, setIsTeamBTimingOut] = useState(() =>
+          readStoredJSON("isTeamBTimingOut", false)
+        );
 
-        const [teamsTotalTO, setTeamsTotalTO] = useState(2);
-        const [teamATOUsed, setTeamATOUsed] = useState(0);
-        const [teamBTOUsed, setTeamBTOUsed] = useState(0);
+        const [teamsTotalTO, setTeamsTotalTO] = useState(() =>
+          readStoredJSON("totalTO", 2)
+        );
+        const [teamATOUsed, setTeamATOUsed] = useState(
+          () => readStoredJSON("teamsTimeout", {}).teamATOUsed ?? 0
+        );
+        const [teamBTOUsed, setTeamBTOUsed] = useState(
+          () => readStoredJSON("teamsTimeout", {}).teamBTOUsed ?? 0
+        );
 
         const [timeoutIntervalId, setTimeoutIntervalId] = useState(null);
 
+        // Bỏ qua lần chạy đầu tiên (khi mount) để không xoá faults/hội ý vừa hydrate từ localStorage
+        const periodMountRef = useRef(true);
         useEffect(() => {
+          if (periodMountRef.current) {
+            periodMountRef.current = false;
+            return;
+          }
           setFaults({
             teamAFaults: 0,
             teamBFaults: 0,
@@ -411,7 +556,9 @@
 
         const reset = () => {
           setTimer(0);
+          setTimerInputTimerValue("");
           setTimerIsRunning(false);
+          setLeagueLogo(null);
           setTeamALogo(null);
           setTeamBLogo(null);
           if (is5vs5) {
@@ -432,14 +579,25 @@
           setTeamsTotalTO(2);
           setTeamATOUsed(0);
           setTeamBTOUsed(0);
+          // Dừng hẳn hội ý đang chạy (nếu có) để interval không tiếp tục sau khi reset
+          clearInterval(timeoutIntervalId);
+          setTimeoutIntervalId(null);
+          setIsTeamATimingOut(false);
+          setIsTeamBTimingOut(false);
+          setTimeOutClock(59);
           localStorage.clear();
+          // Ghi lại màu mặc định để bảng điểm và remote không lệch nhau sau khi clear()
+          setTeamAColor("#ffffff");
+          setTeamBColor("#cccccc");
+          safeSetItem("teamAColor", "#ffffff");
+          safeSetItem("teamBColor", "#cccccc");
           setOpen(false);
         };
 
         useEffect(() => {
-          localStorage.setItem("timer", JSON.stringify(timer));
-          localStorage.setItem("shotClock", JSON.stringify(shotClock));
-          localStorage.setItem(
+          safeSetItem("timer", JSON.stringify(timer));
+          safeSetItem("shotClock", JSON.stringify(shotClock));
+          safeSetItem(
             "scoreAndFault",
             JSON.stringify({
               teamAScore,
@@ -448,30 +606,21 @@
               teamBFaults: faults.teamBFaults,
             })
           );
-          localStorage.setItem("period", JSON.stringify(period));
-          localStorage.setItem("overTime", JSON.stringify(overTime));
-          localStorage.setItem(
+          safeSetItem("period", JSON.stringify(period));
+          safeSetItem("overTime", JSON.stringify(overTime));
+          safeSetItem(
             "teamsTimeout",
             JSON.stringify({
               teamATOUsed,
               teamBTOUsed,
             })
           );
-          localStorage.setItem("totalTimeout", JSON.stringify(teamsTotalTO));
-          localStorage.setItem(
-            "isTeamATimingOut",
-            JSON.stringify(isTeamATimingOut)
-          );
-          localStorage.setItem(
-            "isTeamBTimingOut",
-            JSON.stringify(isTeamBTimingOut)
-          );
-          localStorage.setItem("timeOutClock", JSON.stringify(timeOutClock));
-          localStorage.setItem("is5vs5", JSON.stringify(is5vs5));
-          localStorage.setItem(
-            "scoreboardScale",
-            JSON.stringify(scoreboardScale)
-          );
+          safeSetItem("totalTO", JSON.stringify(teamsTotalTO));
+          safeSetItem("isTeamATimingOut", JSON.stringify(isTeamATimingOut));
+          safeSetItem("isTeamBTimingOut", JSON.stringify(isTeamBTimingOut));
+          safeSetItem("timeOutClock", JSON.stringify(timeOutClock));
+          safeSetItem("is5vs5", JSON.stringify(is5vs5));
+          safeSetItem("scoreboardScale", JSON.stringify(scoreboardScale));
         });
 
         // shotcut
@@ -484,7 +633,17 @@
           };
         });
 
-        const handleKeyDown = () => {
+        const handleKeyDown = (event) => {
+          const target = event.target;
+          const isTypingInField =
+            target &&
+            (target.tagName === "INPUT" ||
+              target.tagName === "TEXTAREA" ||
+              target.tagName === "SELECT" ||
+              target.isContentEditable);
+          if (isTypingInField) {
+            return;
+          }
           console.log(event.code);
           if (is5vs5) {
             if (event.code === "ControlLeft") {
@@ -518,8 +677,8 @@
                 transform: `scale(${remoteScale / 100})`,
                 transformOrigin: "top center",
                 backgroundImage: is5vs5
-                  ? `url('/assets/backgrounds/background5vs5.jpg')`
-                  : `url('/assets/backgrounds/background3vs3.jpg')`,
+                  ? `url('./assets/backgrounds/background5vs5.jpg')`
+                  : `url('./assets/backgrounds/background3vs3.jpg')`,
               }}
               className="app-container w-full h-full space-y-[10px] bg-center bg-cover px-[20px] pb-[20px] flex flex-col"
             >
@@ -597,7 +756,7 @@
                     accept="image/*"
                     type="file"
                     id="upload-logo-team-1"
-                    onChange={() => handleUploadTeamLogo("A")}
+                    onChange={(e) => handleUploadTeamLogo("A", e)}
                   />
                   <label
                     htmlFor="upload-logo-team-1"
@@ -671,7 +830,7 @@
                     accept="image/*"
                     type="file"
                     id="upload-logo-team-2"
-                    onChange={() => handleUploadTeamLogo("B")}
+                    onChange={(e) => handleUploadTeamLogo("B", e)}
                   />
                   <label
                     htmlFor="upload-logo-team-2"
@@ -1032,6 +1191,12 @@
                     </button>
                   </div>
                 </div>
+              </div>
+            )}
+
+            {logoNotice && (
+              <div className="fixed bottom-[20px] left-1/2 -translate-x-1/2 z-[60] max-w-[90%] rounded-[8px] bg-[#c82525] px-[24px] py-[14px] text-center text-[18px] text-white shadow-lg">
+                {logoNotice}
               </div>
             )}
           </div>

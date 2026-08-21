@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Score Board</title>
-    <link rel="icon" href="/assets/website-icon.png" />
+    <link rel="icon" href="./assets/website-icon.png" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -50,36 +50,120 @@
       const App = () => {
         const { useState, useEffect, useRef } = React;
 
-        const [leagueLogo, setLeagueLogo] = useState("");
-        const [teamALogo, setTeamALogo] = useState("");
-        const [teamBLogo, setTeamBLogo] = useState("");
-        const leagueLogoRef = useRef(null);
-        const [teamAName, setTeamAName] = useState("");
-        const [teamBName, setTeamBName] = useState("");
-        const [teamAColor, setTeamAColor] = useState("white");
-        const [teamBColor, setTeamBColor] = useState("white");
-        const [timer, setTimer] = useState(0);
-        const [shotClock, setShotClock] = useState(24);
-        const [scoreAndFault, setScoreAndFault] = useState({
-          teamAScore: 0,
-          teamBScore: 0,
-          teamAFaults: 0,
-          teamBFaults: 0,
-        });
-        const [period, setPeriod] = useState(1);
-        const [overTime, setOverTime] = useState(false);
-        const [teamsTimeout, setteamsTimeout] = useState({
-          teamATOUsed: 0,
-          teamBTOUsed: 0,
-        });
-        const [totalTO, setTotalTO] = useState(2);
-        const [timeOutClock, setTimeOutClock] = useState(59);
-        const [isTeamATimingOut, setIsTeamATimingOut] = useState(false);
-        const [isTeamBTimingOut, setIsTeamBTimingOut] = useState(false);
-        const [is5vs5, setIs5vs5] = useState(true);
-        const [scoreboardScale, setScoreboardScale] = useState(100);
+        // Đọc dữ liệu đã lưu trong localStorage để hydrate lại bảng điểm khi tải trang
+        // (ví dụ: mở scoreboard.html sau khi đã thiết lập tên đội/điểm ở remote)
+        const readStoredJSON = (key, fallback) => {
+          const raw = localStorage.getItem(key);
+          if (raw === null) return fallback;
+          try {
+            return JSON.parse(raw);
+          } catch (e) {
+            return fallback;
+          }
+        };
+        const readStoredString = (key, fallback) => {
+          const raw = localStorage.getItem(key);
+          return raw === null ? fallback : raw;
+        };
 
-        window.addEventListener("storage", (event) => {
+        const [leagueLogo, setLeagueLogo] = useState(() =>
+          readStoredString("leagueLogo", "")
+        );
+        const [teamALogo, setTeamALogo] = useState(() =>
+          readStoredString("teamALogo", "")
+        );
+        const [teamBLogo, setTeamBLogo] = useState(() =>
+          readStoredString("teamBLogo", "")
+        );
+        const leagueLogoRef = useRef(null);
+        const [teamAName, setTeamAName] = useState(() =>
+          readStoredString("teamAName", "")
+        );
+        const [teamBName, setTeamBName] = useState(() =>
+          readStoredString("teamBName", "")
+        );
+        const [teamAColor, setTeamAColor] = useState(() =>
+          readStoredString("teamAColor", "white")
+        );
+        const [teamBColor, setTeamBColor] = useState(() =>
+          readStoredString("teamBColor", "white")
+        );
+        const [timer, setTimer] = useState(() => readStoredJSON("timer", 0));
+        const [shotClock, setShotClock] = useState(() =>
+          readStoredJSON("shotClock", 24)
+        );
+        const [scoreAndFault, setScoreAndFault] = useState(() =>
+          readStoredJSON("scoreAndFault", {
+            teamAScore: 0,
+            teamBScore: 0,
+            teamAFaults: 0,
+            teamBFaults: 0,
+          })
+        );
+        const [period, setPeriod] = useState(() => readStoredJSON("period", 1));
+        const [overTime, setOverTime] = useState(() =>
+          readStoredJSON("overTime", false)
+        );
+        const [teamsTimeout, setteamsTimeout] = useState(() =>
+          readStoredJSON("teamsTimeout", {
+            teamATOUsed: 0,
+            teamBTOUsed: 0,
+          })
+        );
+        const [totalTO, setTotalTO] = useState(() =>
+          readStoredJSON("totalTO", 2)
+        );
+        const [timeOutClock, setTimeOutClock] = useState(() =>
+          readStoredJSON("timeOutClock", 59)
+        );
+        const [isTeamATimingOut, setIsTeamATimingOut] = useState(() =>
+          readStoredJSON("isTeamATimingOut", false)
+        );
+        const [isTeamBTimingOut, setIsTeamBTimingOut] = useState(() =>
+          readStoredJSON("isTeamBTimingOut", false)
+        );
+        const [is5vs5, setIs5vs5] = useState(() =>
+          readStoredJSON("is5vs5", true)
+        );
+        const [scoreboardScale, setScoreboardScale] = useState(() =>
+          readStoredJSON("scoreboardScale", 100)
+        );
+
+        // Đưa bảng điểm về mặc định khi remote bấm "Reset tất cả".
+        // Giữ nguyên is5vs5 và scoreboardScale (thuộc cấu hình hiển thị, không phải
+        // dữ liệu trận) để tránh nháy đổi ảnh nền / cỡ hiển thị trên máy chiếu.
+        const resetAll = () => {
+          setLeagueLogo("");
+          setTeamALogo("");
+          setTeamBLogo("");
+          setTeamAName("");
+          setTeamBName("");
+          setTeamAColor("white");
+          setTeamBColor("white");
+          setTimer(0);
+          setShotClock(24);
+          setScoreAndFault({
+            teamAScore: 0,
+            teamBScore: 0,
+            teamAFaults: 0,
+            teamBFaults: 0,
+          });
+          setPeriod(1);
+          setOverTime(false);
+          setteamsTimeout({ teamATOUsed: 0, teamBTOUsed: 0 });
+          setTotalTO(2);
+          setTimeOutClock(59);
+          setIsTeamATimingOut(false);
+          setIsTeamBTimingOut(false);
+        };
+
+        useEffect(() => {
+          const handleStorage = (event) => {
+          // localStorage.clear() ở remote ("Reset tất cả") phát sự kiện với key = null
+          if (event.key === null) {
+            resetAll();
+            return;
+          }
           // console.log(event);
           switch (event.key) {
             case "leagueLogo":
@@ -153,7 +237,11 @@
               );
               break;
           }
-        });
+          };
+
+          window.addEventListener("storage", handleStorage);
+          return () => window.removeEventListener("storage", handleStorage);
+        }, []);
 
         return (
           <div className="bg-black w-screen h-screen leading-none relative">
@@ -162,8 +250,8 @@
                 transform: `scale(${scoreboardScale / 100})`,
                 transformOrigin: "top center",
                 backgroundImage: is5vs5
-                  ? `url('/assets/backgrounds/background5vs5.jpg')`
-                  : `url('/assets/backgrounds/background3vs3.jpg')`,
+                  ? `url('./assets/backgrounds/background5vs5.jpg')`
+                  : `url('./assets/backgrounds/background3vs3.jpg')`,
               }}
               className="app-container w-full h-full bg-center bg-cover space-y-[20px] p-[20px] flex flex-col"
             >
@@ -317,7 +405,7 @@
                     transform: `scale(${scoreboardScale / 100})`,
                     transformOrigin: "center",
                     backgroundImage:
-                      "url('/assets/backgrounds/modal-background.png')",
+                      "url('./assets/backgrounds/modal-background.png')",
                   }}
                 >
                   <div className="text-white text-center w-full h-full p-[40px] flex flex-col space-y-[20px] font-roboto">

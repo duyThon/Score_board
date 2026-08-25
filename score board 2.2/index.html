@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Remote</title>
-    <link rel="icon" href="./assets/website-icon.png" />
+    <link rel="icon" href="./assets/teams-logo/default-logo.png" />
 
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -21,11 +21,11 @@
     <div id="root"></div>
     <script
       crossorigin
-      src="https://unpkg.com/react@18/umd/react.development.js"
+      src="https://unpkg.com/react@18/umd/react.production.min.js"
     ></script>
     <script
       crossorigin
-      src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"
+      src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"
     ></script>
 
     <!-- Tailwind + GSAP -->
@@ -426,6 +426,13 @@
         );
         const [TOTimer, setTOTimer] = useState(0);
 
+        // Possession arrow (quyền kiểm soát bóng luân phiên)
+        // "A" = đội bên trái, "B" = đội bên phải, null = chưa xác định (cả hai mờ)
+        // Đổi hoàn toàn thủ công: bấm tam giác bên nào thì bên đó sáng.
+        const [possession, setPossession] = useState(() =>
+          readStoredJSON("possession", null)
+        );
+
         const handlePeriod = () => {
           if (period < 4) {
             setPeriod((pre) => pre + 1);
@@ -572,6 +579,7 @@
           setTeamBScore(0);
           setPeriod(1);
           setOverTime(false);
+          setPossession(null);
           setFaults({
             teamAFaults: 0,
             teamBFaults: 0,
@@ -594,44 +602,48 @@
           setOpen(false);
         };
 
-        useEffect(() => {
-          safeSetItem("timer", JSON.stringify(timer));
-          safeSetItem("shotClock", JSON.stringify(shotClock));
-          safeSetItem(
-            "scoreAndFault",
-            JSON.stringify({
-              teamAScore,
-              teamBScore,
-              teamAFaults: faults.teamAFaults,
-              teamBFaults: faults.teamBFaults,
-            })
-          );
-          safeSetItem("period", JSON.stringify(period));
-          safeSetItem("overTime", JSON.stringify(overTime));
-          safeSetItem(
-            "teamsTimeout",
-            JSON.stringify({
-              teamATOUsed,
-              teamBTOUsed,
-            })
-          );
-          safeSetItem("totalTO", JSON.stringify(teamsTotalTO));
-          safeSetItem("isTeamATimingOut", JSON.stringify(isTeamATimingOut));
-          safeSetItem("isTeamBTimingOut", JSON.stringify(isTeamBTimingOut));
-          safeSetItem("timeOutClock", JSON.stringify(timeOutClock));
-          safeSetItem("is5vs5", JSON.stringify(is5vs5));
-          safeSetItem("scoreboardScale", JSON.stringify(scoreboardScale));
+        // Mỗi giá trị có effect riêng với dependency là chính nó, nên chỉ key nào
+        // thật sự đổi mới được ghi xuống localStorage.
+        // Trước đây một effect duy nhất ghi cả 13 key mỗi khi BẤT KỲ giá trị nào đổi,
+        // nên lúc đồng hồ chạy là ~13 lần ghi/giây dù chỉ timer và shotClock đổi.
+        const usePersist = (key, value) => {
+          const json = JSON.stringify(value);
+          useEffect(() => {
+            safeSetItem(key, json);
+          }, [key, json]);
+        };
+
+        usePersist("timer", timer);
+        usePersist("shotClock", shotClock);
+        usePersist("scoreAndFault", {
+          teamAScore,
+          teamBScore,
+          teamAFaults: faults.teamAFaults,
+          teamBFaults: faults.teamBFaults,
         });
+        usePersist("period", period);
+        usePersist("overTime", overTime);
+        usePersist("possession", possession);
+        usePersist("teamsTimeout", { teamATOUsed, teamBTOUsed });
+        usePersist("totalTO", teamsTotalTO);
+        usePersist("isTeamATimingOut", isTeamATimingOut);
+        usePersist("isTeamBTimingOut", isTeamBTimingOut);
+        usePersist("timeOutClock", timeOutClock);
+        usePersist("is5vs5", is5vs5);
+        usePersist("scoreboardScale", scoreboardScale);
 
         // shotcut
 
+        // handleKeyDown chỉ đọc is5vs5 (chọn 24s/14s/12s) và điểm hai đội
+        // (qua handleScore), nên chỉ cần gắn lại listener khi ba giá trị này đổi
+        // thay vì mọi lần render.
         useEffect(() => {
           window.addEventListener("keydown", handleKeyDown);
 
           return () => {
             window.removeEventListener("keydown", handleKeyDown);
           };
-        });
+        }, [is5vs5, teamAScore, teamBScore]);
 
         const handleKeyDown = (event) => {
           const target = event.target;
@@ -887,16 +899,38 @@
                   </div>
                 </div>
                 <div className="col-span-4 flex flex-col space-y-[10px]">
-                  <div className="period flex border-2 border-white rounded-[10px] text-white font-roboto w-full text-center p-[10px] text-[50px] cursor-pointer">
+                  <div className="period flex items-center gap-[10px] border-2 border-white rounded-[10px] text-white font-roboto w-full text-center p-[10px] text-[50px] cursor-pointer">
+                    <img
+                      src="./assets/icons/left-triangle.png"
+                      alt="Quyền kiểm soát bóng: đội A"
+                      title="Quyền kiểm soát bóng: đội A"
+                      className="h-[44px] w-auto shrink-0 cursor-pointer hover:scale-110 transition-transform"
+                      style={{ opacity: possession === "A" ? 1 : 0.2 }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPossession("A");
+                      }}
+                    />
                     {!overTime ? (
-                      <h1 className="w-full" onClick={handlePeriod}>
+                      <h1 className="flex-1" onClick={handlePeriod}>
                         HIỆP <span>{period}</span>
                       </h1>
                     ) : (
-                      <h1 className="w-full" onClick={handlePeriod}>
+                      <h1 className="flex-1" onClick={handlePeriod}>
                         HIỆP PHỤ <span>{period}</span>
                       </h1>
                     )}
+                    <img
+                      src="./assets/icons/right-triangle.png"
+                      alt="Quyền kiểm soát bóng: đội B"
+                      title="Quyền kiểm soát bóng: đội B"
+                      className="h-[44px] w-auto shrink-0 cursor-pointer hover:scale-110 transition-transform"
+                      style={{ opacity: possession === "B" ? 1 : 0.2 }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setPossession("B");
+                      }}
+                    />
                     <button
                       className="text-[26px] cursor-pointer px-[20px] py-[10px] border-2 border-white rounded-[4px] hover:bg-gray-900"
                       onClick={() => setOverTime((pre) => !pre)}

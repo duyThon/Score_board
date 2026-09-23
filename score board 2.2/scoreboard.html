@@ -45,6 +45,7 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
 
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="./reset-state.js"></script>
     <link rel="stylesheet" href="style.css" />;
     <script type="text/babel">
       // Ô điểm có animation: số cũ trượt lên biến mất, số mới trượt từ dưới lên,
@@ -256,12 +257,10 @@
             ></div>
             <div ref={panelRef} className="relative w-full h-[80%]">
               <div
-                className="w-full h-full flex flex-col items-center justify-center bg-center bg-cover"
+                className="w-full h-full flex flex-col items-center justify-center bg-black"
                 style={{
                   transform: `scale(${scale / 100})`,
                   transformOrigin: "center",
-                  backgroundImage:
-                    "url('./assets/backgrounds/modal-background.png')",
                 }}
               >
                 {frozenChildrenRef.current}
@@ -299,7 +298,6 @@
         const [teamBLogo, setTeamBLogo] = useState(() =>
           readStoredString("teamBLogo", ""),
         );
-        const leagueLogoRef = useRef(null);
         const [teamAName, setTeamAName] = useState(() =>
           readStoredString("teamAName", ""),
         );
@@ -357,6 +355,13 @@
           readStoredJSON("scoreboardScale", 100),
         );
 
+        const is5vs5Ref = useRef(is5vs5);
+        const scoreboardScaleRef = useRef(scoreboardScale);
+        useEffect(() => {
+          is5vs5Ref.current = is5vs5;
+          scoreboardScaleRef.current = scoreboardScale;
+        }, [is5vs5, scoreboardScale]);
+
         // Đưa bảng điểm về mặc định khi remote bấm "Reset tất cả".
         // Giữ nguyên is5vs5 và scoreboardScale (thuộc cấu hình hiển thị, không phải
         // dữ liệu trận) để tránh nháy đổi ảnh nền / cỡ hiển thị trên máy chiếu.
@@ -368,6 +373,11 @@
         });
 
         const resetAll = () => {
+          const resetState = ScoreboardReset.getResetState(
+            is5vs5Ref.current,
+            scoreboardScaleRef.current,
+          );
+
           suppressAnimRef.current = true;
           setLeagueLogo("");
           setTeamALogo("");
@@ -376,27 +386,22 @@
           setTeamBName("");
           setTeamAColor("white");
           setTeamBColor("white");
-          setTimer(0);
-          setShotClock(24);
-          setScoreAndFault({
-            teamAScore: 0,
-            teamBScore: 0,
-            teamAFaults: 0,
-            teamBFaults: 0,
-          });
-          setPeriod(1);
-          setOverTime(false);
-          setPossession(null);
-          setteamsTimeout({ teamATOUsed: 0, teamBTOUsed: 0 });
-          setTotalTO(2);
-          setTimeOutClock(59);
-          setIsTeamATimingOut(false);
-          setIsTeamBTimingOut(false);
+          setTimer(resetState.timer);
+          setShotClock(resetState.shotClock);
+          setScoreAndFault(resetState.scoreAndFault);
+          setPeriod(resetState.period);
+          setOverTime(resetState.overTime);
+          setPossession(resetState.possession);
+          setteamsTimeout(resetState.teamsTimeout);
+          setTotalTO(resetState.totalTO);
+          setTimeOutClock(resetState.timeOutClock);
+          setIsTeamATimingOut(resetState.isTeamATimingOut);
+          setIsTeamBTimingOut(resetState.isTeamBTimingOut);
         };
 
         useEffect(() => {
           const handleStorage = (event) => {
-            // localStorage.clear() ở remote ("Reset tất cả") phát sự kiện với key = null
+            // Hỗ trợ trường hợp storage bị xoá toàn bộ từ nơi khác.
             if (event.key === null) {
               resetAll();
               return;
@@ -493,11 +498,8 @@
               style={{
                 transform: `scale(${scoreboardScale / 100})`,
                 transformOrigin: "top center",
-                backgroundImage: is5vs5
-                  ? `url('./assets/backgrounds/background5vs5.jpg')`
-                  : `url('./assets/backgrounds/background3vs3.jpg')`,
               }}
-              className="app-container w-full h-full bg-center bg-cover space-y-[20px] p-[20px] flex flex-col"
+              className="app-container w-full h-full bg-black space-y-[20px] p-[20px] flex flex-col"
             >
               <div className="grid grid-cols-12 gap-[20px] flex-1 relative">
                 <div className="col-span-3 flex items-center justify-center">
@@ -513,24 +515,25 @@
                   )}
                 </div>
                 <div className="col-span-6 flex flex-col items-center justify-center">
-                  <div className="flex items-center justify-start p-[20px] w-full bg-[rgba(255,255,255,0.7)] flex-1">
-                    <div className="logo flex flex-col items-center overflow-hidden justify-center">
+                  <div className="relative flex items-center justify-center p-[20px] w-full bg-[rgba(255,255,255,0.7)] flex-1 overflow-hidden">
+                    <div className="logo absolute left-[20px] top-[20px] bottom-[20px] flex flex-col items-center justify-center overflow-hidden">
                       <img
-                        className="w-[200px] pb-[10px]"
+                        className="w-[200px] max-h-1/2 object-contain pb-[10px]"
                         src="./assets/logos/rg.png"
+                        alt="RG"
                       />
                       <img
-                        className="w-[200px]"
+                        className="w-[200px] max-h-1/2 object-contain"
                         src="./assets/logos/brsl.png"
+                        alt="BRSL"
                       />
                     </div>
-                    <div ref={leagueLogoRef} className="w-full h-full">
+                    <div className="flex h-full w-[70%] items-center justify-center overflow-hidden">
                       {leagueLogo && (
-                        <LogoTeam
+                        <img
                           src={leagueLogo}
-                          initialX={0}
-                          initialY={0}
-                          parentRef={leagueLogoRef}
+                          alt="Logo giải"
+                          className="max-h-full max-w-full object-contain"
                         />
                       )}
                     </div>
@@ -684,65 +687,6 @@
                   </div>
             </TimeoutOverlay>
           </div>
-        );
-      };
-
-      const LogoTeam = ({ src, initialX, initialY, parentRef }) => {
-        const { useState, useEffect, useRef } = React;
-
-        const [position, setPosition] = useState({ x: initialX, y: initialY });
-        const [scale, setScale] = useState(1);
-        const [dragging, setDragging] = useState(false);
-        const offset = useRef({ x: 0, y: 0 });
-
-        const handleMouseDown = (e) => {
-          setDragging(true);
-          offset.current = {
-            x: e.clientX - position.x,
-            y: e.clientY - position.y,
-          };
-        };
-
-        const handleMouseMove = (e) => {
-          if (!dragging) return;
-          setPosition({
-            x: e.clientX - offset.current.x,
-            y: e.clientY - offset.current.y,
-          });
-        };
-
-        const handleMouseUp = () => setDragging(false);
-
-        const handleWheel = (e) => {
-          e.preventDefault();
-          const delta = -e.deltaY;
-          const factor = delta > 0 ? 0.05 : -0.05;
-          setScale((prev) => Math.max(0.1, prev + factor));
-        };
-
-        useEffect(() => {
-          window.addEventListener("mousemove", handleMouseMove);
-          window.addEventListener("mouseup", handleMouseUp);
-          return () => {
-            window.removeEventListener("mousemove", handleMouseMove);
-            window.removeEventListener("mouseup", handleMouseUp);
-          };
-        }, [dragging]);
-
-        return (
-          <img
-            src={src}
-            alt="Draggable"
-            className="absolute cursor-move select-none"
-            onMouseDown={handleMouseDown}
-            onWheel={handleWheel}
-            style={{
-              top: position.y,
-              left: position.x,
-              transform: `scale(${scale})`,
-              transformOrigin: "top left",
-            }}
-          />
         );
       };
 

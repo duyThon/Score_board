@@ -58,7 +58,7 @@
       // Chênh lệch lớn hơn mức này coi như sửa điểm bằng tay -> không hiện nhãn
       const MAX_BADGE_DELTA = 9;
 
-      const ScoreBox = ({ value, fontSizeClass, suppressAnimRef }) => {
+      const ScoreBox = ({ value, fontSizeClass, resetToken }) => {
         const { useState, useEffect, useRef } = React;
         // Số đang hiển thị (giữ nguyên trong lúc chờ gom điểm)
         const [displayed, setDisplayed] = useState(value);
@@ -85,15 +85,6 @@
             return;
           }
 
-          // "Reset tất cả": huỷ mọi lần gom đang chờ, đổi số tức thì
-          if (suppressAnimRef && suppressAnimRef.current) {
-            clearTimeout(burstTimerRef.current);
-            burstTimerRef.current = null;
-            pendingAnimRef.current = null;
-            commitNow(value);
-            return;
-          }
-
           // Bấm nhầm rồi bấm lại về đúng giá trị cũ -> huỷ luôn, không animation
           if (value === displayedRef.current) {
             clearTimeout(burstTimerRef.current);
@@ -113,6 +104,19 @@
 
         // Dọn hẹn giờ nếu component bị gỡ giữa chừng
         useEffect(() => () => clearTimeout(burstTimerRef.current), []);
+
+        // "Reset tất cả": huỷ lần gom đang chờ và đổi số tức thì, không animation.
+        // Khai báo SAU effect [value] để dọn đúng cái vừa được hẹn giờ trong cùng
+        // một lượt render; nhờ vậy không phụ thuộc vào thứ tự các storage event tới.
+        const resetTokenRef = useRef(resetToken);
+        useEffect(() => {
+          if (resetTokenRef.current === resetToken) return; // lần mount đầu
+          resetTokenRef.current = resetToken;
+          clearTimeout(burstTimerRef.current);
+          burstTimerRef.current = null;
+          pendingAnimRef.current = null;
+          commitNow(value);
+        }, [resetToken]);
 
         // Chạy animation sau khi số mới đã được render ra DOM
         useEffect(() => {
@@ -364,13 +368,10 @@
 
         // Đưa bảng điểm về mặc định khi remote bấm "Reset tất cả".
         // Giữ nguyên is5vs5 và scoreboardScale (thuộc cấu hình hiển thị, không phải
-        // dữ liệu trận) để tránh nháy đổi ảnh nền / cỡ hiển thị trên máy chiếu.
-        // Bật cờ này để lần đổi điểm ngay sau reset không chạy animation
-        const suppressAnimRef = useRef(false);
-        useEffect(() => {
-          // Chạy sau effect của component con -> hạ cờ khi ScoreBox đã đọc xong
-          suppressAnimRef.current = false;
-        });
+        // dữ liệu trận) để tránh nháy cỡ hiển thị trên máy chiếu.
+        // Mỗi lần reset tăng token này lên; ScoreBox nhận token mới thì đổi số
+        // tức thì thay vì chạy animation trượt kèm nhãn trừ điểm.
+        const [resetToken, setResetToken] = useState(0);
 
         const resetAll = () => {
           const resetState = ScoreboardReset.getResetState(
@@ -378,7 +379,7 @@
             scoreboardScaleRef.current,
           );
 
-          suppressAnimRef.current = true;
+          setResetToken((t) => t + 1);
           setLeagueLogo("");
           setTeamALogo("");
           setTeamBLogo("");
@@ -406,8 +407,11 @@
               resetAll();
               return;
             }
-            // console.log(event);
             switch (event.key) {
+              // Tín hiệu "Reset tất cả" do remote phát ra.
+              case "resetAt":
+                resetAll();
+                break;
               case "leagueLogo":
                 setLeagueLogo(localStorage.getItem("leagueLogo"));
                 break;
@@ -441,7 +445,6 @@
                 setScoreAndFault(
                   JSON.parse(localStorage.getItem("scoreAndFault")),
                 );
-                console.log(scoreAndFault);
                 break;
               case "period":
                 setPeriod(parseInt(JSON.parse(localStorage.getItem("period"))));
@@ -504,7 +507,7 @@
               <div className="grid grid-cols-12 gap-[20px] flex-1 relative">
                 <div className="col-span-3 flex items-center justify-center">
                   {teamALogo ? (
-                    <img src={teamALogo} initialX={0} initialY={0} />
+                    <img src={teamALogo} alt="" />
                   ) : (
                     <h1
                       className="text-white text-center text-[100px] font-roboto"
@@ -515,27 +518,32 @@
                   )}
                 </div>
                 <div className="col-span-6 flex flex-col items-center justify-center">
-                  <div className="relative flex items-center justify-center p-[20px] w-full bg-[rgba(255,255,255,0.7)] flex-1 overflow-hidden">
-                    <div className="logo absolute left-[20px] top-[20px] bottom-[20px] flex flex-col items-center justify-center overflow-hidden">
+                  <div className="flex flex-col gap-[20px] p-[20px] pt-[4px] w-full bg-[rgba(255,255,255,0.7)] flex-1 overflow-hidden">
+                    {/* Hàng trên: hai logo đơn vị, trải đều theo chiều ngang */}
+                    <div className="logo flex w-full shrink-0 items-center justify-evenly">
                       <img
-                        className="w-[200px] max-h-1/2 object-contain pb-[10px]"
+                        className="w-[200px] object-contain"
                         src="./assets/logos/rg.png"
                         alt="RG"
                       />
                       <img
-                        className="w-[200px] max-h-1/2 object-contain"
+                        className="w-[200px] object-contain"
                         src="./assets/logos/brsl.png"
                         alt="BRSL"
                       />
                     </div>
-                    <div className="flex h-full w-[70%] items-center justify-center overflow-hidden">
-                      {leagueLogo && (
-                        <img
-                          src={leagueLogo}
-                          alt="Logo giải"
-                          className="max-h-full max-w-full object-contain"
-                        />
-                      )}
+                    {/* Hàng dưới: logo giải căn giữa, cao tối đa 400px và không
+                        bao giờ vượt quá chỗ trống còn lại */}
+                    <div className="flex min-h-0 flex-1 items-center justify-center overflow-hidden">
+                      <div className="flex h-full max-h-[400px] w-full items-center justify-center">
+                        {leagueLogo && (
+                          <img
+                            src={leagueLogo}
+                            alt="Logo giải"
+                            className="max-h-full max-w-full object-contain"
+                          />
+                        )}
+                      </div>
                     </div>
                   </div>
                   <div className="flex items-center justify-center text-[250px] font-roboto text-white bg-[#9393934d] w-full p-[20px]">
@@ -545,7 +553,7 @@
                 </div>
                 <div className="col-span-3 flex items-center overflow-hidden justify-center">
                   {teamBLogo ? (
-                    <img src={teamBLogo} initialX={0} initialY={0} />
+                    <img src={teamBLogo} alt="" />
                   ) : (
                     <h1
                       className="text-white text-center text-[100px] font-roboto"
@@ -569,7 +577,7 @@
                     <ScoreBox
                       value={scoreAndFault.teamAScore}
                       fontSizeClass="text-[380px]"
-                      suppressAnimRef={suppressAnimRef}
+                      resetToken={resetToken}
                     />
                   </div>
                 </div>
@@ -649,7 +657,7 @@
                     <ScoreBox
                       value={scoreAndFault.teamBScore}
                       fontSizeClass="text-[350px]"
-                      suppressAnimRef={suppressAnimRef}
+                      resetToken={resetToken}
                     />
                   </div>
                 </div>

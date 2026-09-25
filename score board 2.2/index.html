@@ -425,7 +425,6 @@
         const [overTime, setOverTime] = useState(() =>
           readStoredJSON("overTime", false)
         );
-        const [TOTimer, setTOTimer] = useState(0);
 
         // Possession arrow (quyền kiểm soát bóng luân phiên)
         // "A" = đội bên trái, "B" = đội bên phải, null = chưa xác định (cả hai mờ)
@@ -517,7 +516,7 @@
                     clearInterval(id);
                     setIsTeamATimingOut(false);
                     playTOSound();
-                    return null;
+                    return 0;
                   }
                   return prev - 1;
                 });
@@ -539,7 +538,7 @@
                     clearInterval(id);
                     setIsTeamBTimingOut(false);
                     playTOSound();
-                    return null;
+                    return 0;
                   }
                   return prev - 1;
                 });
@@ -602,6 +601,9 @@
           // Ghi lại toàn bộ snapshot reset, kể cả các giá trị không đổi trong React.
           // Điều này giữ đúng chế độ 3vs3 và scale sau reset/refresh.
           const resetStorage = {
+            // Tín hiệu reset, ghi TRƯỚC các key khác để bảng điểm kịp tắt animation.
+            // Giá trị đổi mỗi lần bấm nên storage event luôn được phát.
+            resetAt: Date.now(),
             ...resetState,
             teamAColor: "#ffffff",
             teamBColor: "#cccccc",
@@ -672,7 +674,6 @@
           if (isTypingInField) {
             return;
           }
-          console.log(event.code);
           if (is5vs5) {
             if (event.code === "ControlLeft") {
               setShotClock(24);
@@ -1144,12 +1145,6 @@
                 />
                 24s
               </button>
-              <button
-                onClick={reset}
-                className="border-2 border-white bg-black px-[14px] py-[8px] text-white rounded hover:bg-gray-900"
-              >
-                Reset tất cả
-              </button>
             </div>
 
             {open && (
@@ -1232,8 +1227,14 @@
                   </div>
                   <div className="flex items-center justify-center space-x-4 pb-[30px] w-full">
                     <button
+                      onClick={reset}
+                      className="w-1/2 border cursor-pointer py-[15px] px-[30px] hover:bg-gray-300"
+                    >
+                      Reset tất cả
+                    </button>
+                    <button
                       onClick={() => window.open("scoreboard.html", "_blank")}
-                      className="w-full text-white bg-[#c82525] cursor-pointer py-[15px] px-[30px] hover:bg-[#ab0101]"
+                      className="w-1/2 text-white bg-[#c82525] cursor-pointer py-[15px] px-[30px] hover:bg-[#ab0101]"
                     >
                       Mở bảng điểm
                     </button>
